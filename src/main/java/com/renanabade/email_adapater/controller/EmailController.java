@@ -1,6 +1,5 @@
 package com.renanabade.email_adapater.controller;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.renanabade.email_adapater.domain.email.dto.EmailDTO;
 import com.renanabade.email_adapater.exception.EmailSendingException;
 import com.renanabade.email_adapater.services.impl.EmailService;
