@@ -126,7 +126,7 @@ Os logs podem ter dois status:
 {
   "recipient": "user@example.com",
   "sender": "sender@example.com",
-  "subject": "Teste de E-mail",
+  "subject": "Email Test",
   "status": "SUCCESS",
   "timestamp": "2025-01-29T12:34:56"
 }
@@ -138,7 +138,7 @@ Os logs podem ter dois status:
 {
   "recipient": "user@example.com",
   "sender": "sender@example.com",
-  "subject": "Teste de E-mail",
+  "subject": "Email Test",
   "status": "FAIL",
   "timestamp": "2025-01-29T12:35:10"
 }
@@ -159,8 +159,8 @@ Os logs de erro ajudam a monitorar falhas no envio de e-mails e identificar poss
   "recipient": "user@example.com",
   "recipientName": "User Name",
   "sender": "sender@example.com",
-  "subject": "Teste de E-mail",
-  "content": "Este é um e-mail de teste."
+  "subject": "Email Test",
+  "content": "This is a message"
 }
 ```
 
