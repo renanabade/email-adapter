@@ -2,6 +2,7 @@ package com.renanabade.email_adapter.controller;
 
 import com.renanabade.email_adapter.domain.email.dto.EmailDTO;
 import com.renanabade.email_adapter.exception.EmailSendingException;
+import com.renanabade.email_adapter.exception.EmailValidationException;
 import com.renanabade.email_adapter.services.impl.EmailService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -76,6 +77,25 @@ public class EmailControllerTest {
         ResponseEntity<Void> response = emailController.send(emailData);
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
+
+        verify(emailService, times(1)).sendEmail(emailData);
+    }
+
+    @Test
+    public void testInsert_EmailValidationException() {
+        EmailDTO emailData = new EmailDTO(
+                "recipient@example.com",
+                "Recipient Name",
+                "sender@example.com",
+                "Subject",
+                "Body"
+        );
+
+        doThrow(new EmailValidationException("Invalid email data")).when(emailService).sendEmail(emailData);
+
+        ResponseEntity<Void> response = emailController.send(emailData);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
 
         verify(emailService, times(1)).sendEmail(emailData);
     }
