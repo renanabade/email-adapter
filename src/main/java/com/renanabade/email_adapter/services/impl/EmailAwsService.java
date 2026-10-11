@@ -8,7 +8,15 @@ import com.renanabade.email_adapter.services.strategy.AbstractEmailSendingStrate
 import com.renanabade.email_adapter.util.EmailLogger;
 import jakarta.validation.Validator;
 
+import java.util.Map;
+
 public class EmailAwsService extends AbstractEmailSendingStrategy<EmailAwsDTO> {
+
+    private static final Map<String, String> REQUEST_FIELDS = Map.of(
+            "recipient", "recipientEmail",
+            "sender", "senderEmail",
+            "content", "body"
+    );
 
     public EmailAwsService(EmailLogger emailLogger, Validator validator, ObjectMapper objectMapper) {
         super(emailLogger, validator, objectMapper);
@@ -28,5 +36,10 @@ public class EmailAwsService extends AbstractEmailSendingStrategy<EmailAwsDTO> {
                 emailData.subject(),
                 emailData.body()
         );
+    }
+
+    @Override
+    protected String toRequestField(String payloadField) {
+        return REQUEST_FIELDS.getOrDefault(payloadField, payloadField);
     }
 }

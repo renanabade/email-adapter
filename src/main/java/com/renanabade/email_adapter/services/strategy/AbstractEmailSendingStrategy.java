@@ -12,6 +12,8 @@ import jakarta.validation.Validator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Comparator;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -57,11 +59,27 @@ public abstract class AbstractEmailSendingStrategy<T> implements EmailSendingStr
         emailLogger.successLog(emailData);
     }
 
+    /**
+     * Provider DTOs may name fields differently from the request (e.g. AWS uses
+     * "content" for the request "body"). Override to report errors using the
+     * names the client actually sent.
+     */
+    protected String toRequestField(String payloadField) {
+        return payloadField;
+    }
+
     private void validate(T payload) {
         Set<ConstraintViolation<T>> violations = validator.validate(payload);
-        if (!violations.isEmpty()) {
-            violations.forEach(v -> log.warn("Validation error on {}: {}", v.getPropertyPath(), v.getMessage()));
-            throw new EmailValidationException("Validation failed for email data");
+        if (violations.isEmpty()) {
+            return;
         }
+
+        List<EmailValidationException.FieldValidationError> errors = violations.stream()
+                .map(v -> new EmailValidationException.FieldValidationError(
+                        toRequestField(v.getPropertyPath().toString()), v.getMessage()))
+                .sorted(Comparator.comparing(EmailValidationException.FieldValidationError::field)
+                        .thenComparing(EmailValidationException.FieldValidationError::message))
+                .toList();
+        throw new EmailValidationException("Validation failed for " + provider() + " email data", errors);
     }
 }
