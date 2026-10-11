@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.renanabade.email_adapter.domain.email.dto.EmailDTO;
 import com.renanabade.email_adapter.exception.EmailSendingException;
 import com.renanabade.email_adapter.exception.EmailValidationException;
+import com.renanabade.email_adapter.repositories.EmailLogRepository;
 import com.renanabade.email_adapter.util.EmailLogger;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataAccessResourceFailureException;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -70,5 +72,16 @@ class EmailAwsServiceTest {
         assertEquals("Communication instability with AWS", exception.getMessage());
         verify(emailLogger, times(1)).failLog(emailDTO);
         verify(emailLogger, never()).successLog(any());
+    }
+
+    @Test
+    void sendEmail_SentButLogPersistenceFails_ShouldNotThrow() {
+        EmailLogRepository failingRepository = mock(EmailLogRepository.class);
+        when(failingRepository.save(any())).thenThrow(new DataAccessResourceFailureException("MongoDB is down"));
+        emailAwsService = new EmailAwsService(new EmailLogger(failingRepository), VALIDATOR, new ObjectMapper());
+        EmailDTO emailDTO = new EmailDTO("recipient@example.com", "Recipient Name", "sender@example.com", "Test Subject", "Test Body");
+
+        assertDoesNotThrow(() -> emailAwsService.sendEmail(emailDTO));
+        verify(failingRepository, times(1)).save(any());
     }
 }
