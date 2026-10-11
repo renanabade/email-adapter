@@ -53,7 +53,7 @@ public class EmailOciService implements EmailSendingStrategy {
             throw e;
         }  catch (Exception e) {
             logger.failLog(emailData);
-            throw new EmailSendingException("Communication Instability with AWS");
+            throw new EmailSendingException("Communication Instability with OCI");
         }
     }
 }
