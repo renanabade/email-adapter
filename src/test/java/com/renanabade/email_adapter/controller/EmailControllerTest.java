@@ -2,101 +2,80 @@ package com.renanabade.email_adapter.controller;
 
 import com.renanabade.email_adapter.domain.email.dto.EmailDTO;
 import com.renanabade.email_adapter.exception.EmailSendingException;
-import com.renanabade.email_adapter.exception.EmailValidationException;
-import com.renanabade.email_adapter.services.impl.EmailService;
+import com.renanabade.email_adapter.services.strategy.EmailSendingStrategy;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@ExtendWith(MockitoExtension.class)
-public class EmailControllerTest {
+@WebMvcTest(EmailController.class)
+class EmailControllerTest {
 
-    @Mock
-    private EmailService emailService;
+    private static final String VALID_BODY = """
+            {
+              "recipientEmail": "recipient@example.com",
+              "recipientName": "Recipient Name",
+              "senderEmail": "sender@example.com",
+              "subject": "Subject",
+              "body": "Body"
+            }
+            """;
 
-    @InjectMocks
-    private EmailController emailController;
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockitoBean
+    private EmailSendingStrategy emailSendingStrategy;
 
     @Test
-    public void testInsert_Success() {
-        EmailDTO emailData = new EmailDTO(
-                "recipient@example.com",
-                "Recipient Name",
-                "sender@example.com",
-                "Subject",
-                "Body"
-        );
+    void send_Success_ShouldReturnNoContent() throws Exception {
+        mockMvc.perform(post("/emails").contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
+                .andExpect(status().isNoContent());
 
-        doNothing().when(emailService).sendEmail(emailData);
-
-        ResponseEntity<Void> response = emailController.send(emailData);
-
-        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
-
-        verify(emailService, times(1)).sendEmail(emailData);
+        verify(emailSendingStrategy, times(1)).sendEmail(new EmailDTO(
+                "recipient@example.com", "Recipient Name", "sender@example.com", "Subject", "Body"));
     }
 
     @Test
-    public void testInsert_EmailSendingException() {
-        EmailDTO emailData = new EmailDTO(
-                "recipient@example.com",
-                "Recipient Name",
-                "sender@example.com",
-                "Subject",
-                "Body"
-        );
+    void send_ProviderFailure_ShouldReturnServiceUnavailable() throws Exception {
+        doThrow(new EmailSendingException("Communication instability with AWS"))
+                .when(emailSendingStrategy).sendEmail(any());
 
-        doThrow(new EmailSendingException("Email sending error")).when(emailService).sendEmail(emailData);
-
-        ResponseEntity<Void> response = emailController.send(emailData);
-
-        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.getStatusCode());
-
-        verify(emailService, times(1)).sendEmail(emailData);
+        mockMvc.perform(post("/emails").contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(503))
+                .andExpect(jsonPath("$.detail").value("Communication instability with AWS"));
     }
 
     @Test
-    public void testInsert_GenericException() {
-        EmailDTO emailData = new EmailDTO(
-                "recipient@example.com",
-                "Recipient Name",
-                "sender@example.com",
-                "Subject",
-                "Body"
-        );
+    void send_UnexpectedError_ShouldReturnInternalServerErrorWithoutDetails() throws Exception {
+        doThrow(new IllegalStateException("database password is wrong"))
+                .when(emailSendingStrategy).sendEmail(any());
 
-        doThrow(new RuntimeException("Internal error")).when(emailService).sendEmail(emailData);
-
-        ResponseEntity<Void> response = emailController.send(emailData);
-
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
-
-        verify(emailService, times(1)).sendEmail(emailData);
+        mockMvc.perform(post("/emails").contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.status").value(500))
+                .andExpect(jsonPath("$.detail").value("An unexpected error occurred"))
+                .andExpect(content().string(not(containsString("database password"))))
+                .andExpect(content().string(not(containsString("IllegalStateException"))));
     }
 
     @Test
-    public void testInsert_EmailValidationException() {
-        EmailDTO emailData = new EmailDTO(
-                "recipient@example.com",
-                "Recipient Name",
-                "sender@example.com",
-                "Subject",
-                "Body"
-        );
+    void send_MalformedJson_ShouldReturnBadRequest() throws Exception {
+        mockMvc.perform(post("/emails").contentType(MediaType.APPLICATION_JSON).content("{ not json"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON));
 
-        doThrow(new EmailValidationException("Invalid email data")).when(emailService).sendEmail(emailData);
-
-        ResponseEntity<Void> response = emailController.send(emailData);
-
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-
-        verify(emailService, times(1)).sendEmail(emailData);
+        verifyNoInteractions(emailSendingStrategy);
     }
 }

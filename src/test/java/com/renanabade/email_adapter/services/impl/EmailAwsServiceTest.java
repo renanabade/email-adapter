@@ -1,15 +1,20 @@
 package com.renanabade.email_adapter.services.impl;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.renanabade.email_adapter.domain.email.dto.EmailDTO;
 import com.renanabade.email_adapter.exception.EmailSendingException;
 import com.renanabade.email_adapter.exception.EmailValidationException;
+import com.renanabade.email_adapter.repositories.EmailLogRepository;
 import com.renanabade.email_adapter.util.EmailLogger;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataAccessResourceFailureException;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -17,15 +22,16 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class EmailAwsServiceTest {
 
+    private static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();
+
     @Mock
     private EmailLogger emailLogger;
 
-    @InjectMocks
     private EmailAwsService emailAwsService;
 
     @BeforeEach
     void setUp() {
-        emailAwsService = new EmailAwsService(emailLogger);
+        emailAwsService = new EmailAwsService(emailLogger, VALIDATOR, new ObjectMapper());
     }
 
     @Test
@@ -47,13 +53,35 @@ class EmailAwsServiceTest {
     }
 
     @Test
-    void sendEmail_ExceptionOccurs_ShouldLogFailureAndThrowException() {
+    void sendEmail_RecipientWithin45Characters_ShouldBeAccepted() {
+        // 42 characters: accepted by AWS (max 45) but rejected by OCI (max 40)
+        String recipient = "a".repeat(30) + "@example.com";
+        EmailDTO emailDTO = new EmailDTO(recipient, "Recipient Name", "sender@example.com", "Test Subject", "Test Body");
+
+        assertDoesNotThrow(() -> emailAwsService.sendEmail(emailDTO));
+    }
+
+    @Test
+    void sendEmail_SerializationFails_ShouldLogFailureAndThrowSendingException() throws JsonProcessingException {
+        ObjectMapper failingMapper = mock(ObjectMapper.class);
+        when(failingMapper.writeValueAsString(any())).thenThrow(new JsonProcessingException("AWS payload error") {});
+        emailAwsService = new EmailAwsService(emailLogger, VALIDATOR, failingMapper);
         EmailDTO emailDTO = new EmailDTO("recipient@example.com", "Recipient Name", "sender@example.com", "Test Subject", "Test Body");
 
-        doThrow(new RuntimeException("AWS Service Down"))
-                .when(emailLogger).successLog(emailDTO);
-
-        assertThrows(EmailSendingException.class, () -> emailAwsService.sendEmail(emailDTO));
+        EmailSendingException exception = assertThrows(EmailSendingException.class, () -> emailAwsService.sendEmail(emailDTO));
+        assertEquals("Communication instability with AWS", exception.getMessage());
         verify(emailLogger, times(1)).failLog(emailDTO);
+        verify(emailLogger, never()).successLog(any());
+    }
+
+    @Test
+    void sendEmail_SentButLogPersistenceFails_ShouldNotThrow() {
+        EmailLogRepository failingRepository = mock(EmailLogRepository.class);
+        when(failingRepository.save(any())).thenThrow(new DataAccessResourceFailureException("MongoDB is down"));
+        emailAwsService = new EmailAwsService(new EmailLogger(failingRepository), VALIDATOR, new ObjectMapper());
+        EmailDTO emailDTO = new EmailDTO("recipient@example.com", "Recipient Name", "sender@example.com", "Test Subject", "Test Body");
+
+        assertDoesNotThrow(() -> emailAwsService.sendEmail(emailDTO));
+        verify(failingRepository, times(1)).save(any());
     }
 }
