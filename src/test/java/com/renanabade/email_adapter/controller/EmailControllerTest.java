@@ -3,7 +3,7 @@ package com.renanabade.email_adapter.controller;
 import com.renanabade.email_adapter.domain.email.dto.EmailDTO;
 import com.renanabade.email_adapter.exception.EmailSendingException;
 import com.renanabade.email_adapter.exception.EmailValidationException;
-import com.renanabade.email_adapter.services.impl.EmailService;
+import com.renanabade.email_adapter.services.strategy.EmailSendingStrategy;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -19,7 +19,7 @@ import static org.mockito.Mockito.*;
 public class EmailControllerTest {
 
     @Mock
-    private EmailService emailService;
+    private EmailSendingStrategy emailSendingStrategy;
 
     @InjectMocks
     private EmailController emailController;
@@ -34,13 +34,13 @@ public class EmailControllerTest {
                 "Body"
         );
 
-        doNothing().when(emailService).sendEmail(emailData);
+        doNothing().when(emailSendingStrategy).sendEmail(emailData);
 
         ResponseEntity<Void> response = emailController.send(emailData);
 
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
 
-        verify(emailService, times(1)).sendEmail(emailData);
+        verify(emailSendingStrategy, times(1)).sendEmail(emailData);
     }
 
     @Test
@@ -53,13 +53,13 @@ public class EmailControllerTest {
                 "Body"
         );
 
-        doThrow(new EmailSendingException("Email sending error")).when(emailService).sendEmail(emailData);
+        doThrow(new EmailSendingException("Email sending error")).when(emailSendingStrategy).sendEmail(emailData);
 
         ResponseEntity<Void> response = emailController.send(emailData);
 
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.getStatusCode());
 
-        verify(emailService, times(1)).sendEmail(emailData);
+        verify(emailSendingStrategy, times(1)).sendEmail(emailData);
     }
 
     @Test
@@ -72,13 +72,13 @@ public class EmailControllerTest {
                 "Body"
         );
 
-        doThrow(new RuntimeException("Internal error")).when(emailService).sendEmail(emailData);
+        doThrow(new RuntimeException("Internal error")).when(emailSendingStrategy).sendEmail(emailData);
 
         ResponseEntity<Void> response = emailController.send(emailData);
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
 
-        verify(emailService, times(1)).sendEmail(emailData);
+        verify(emailSendingStrategy, times(1)).sendEmail(emailData);
     }
 
     @Test
@@ -91,12 +91,12 @@ public class EmailControllerTest {
                 "Body"
         );
 
-        doThrow(new EmailValidationException("Invalid email data")).when(emailService).sendEmail(emailData);
+        doThrow(new EmailValidationException("Invalid email data")).when(emailSendingStrategy).sendEmail(emailData);
 
         ResponseEntity<Void> response = emailController.send(emailData);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
 
-        verify(emailService, times(1)).sendEmail(emailData);
+        verify(emailSendingStrategy, times(1)).sendEmail(emailData);
     }
 }

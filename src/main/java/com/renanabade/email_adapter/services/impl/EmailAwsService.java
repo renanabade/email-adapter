@@ -11,18 +11,14 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 
 import java.util.Set;
 
-@Service
 public class EmailAwsService implements EmailSendingStrategy {
 
     private final EmailLogger logger;
     private final Validator validator;
 
-    @Autowired
     public EmailAwsService(EmailLogger logger) {
         this.logger = logger;
         ValidatorFactory factory = Validation.buildDefaultValidatorFactory();
