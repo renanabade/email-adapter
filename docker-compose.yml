@@ -1,0 +1,26 @@
+services:
+  mongodb:
+    image: mongo:8.0
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/email-adapter
+      MAIL_INTEGRACAO: ${MAIL_INTEGRACAO:-OCI}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+volumes:
+  mongo-data:
